@@ -1,0 +1,20 @@
+{
+  "name": "beatify-claude-status-line",
+  "owner": {
+    "name": "goddaehee",
+    "email": ""
+  },
+  "metadata": {
+    "description": "Beautiful status line with {god} tag, random emoji, context usage, API rate limits, and cost tracking",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "beatify-claude-status-line",
+      "source": "./",
+      "description": "Beautiful status line with {god} tag, random emoji, model name, directory, context usage progress bar, token count, cost, and compact rate limits (5h/7d). Supports Max and Pro plans.",
+      "category": "monitoring",
+      "tags": ["statusline", "monitoring", "context", "rate-limits", "cost", "beautiful"]
+    }
+  ]
+}

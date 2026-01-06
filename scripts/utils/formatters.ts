@@ -1,0 +1,74 @@
+import type { Translations } from '../types.js';
+
+/**
+ * Format token count in K/M format
+ * Examples: 1500 -> "1.5K", 150000 -> "150K", 1500000 -> "1.5M"
+ */
+export function formatTokens(tokens: number): string {
+  if (tokens >= 1_000_000) {
+    const value = tokens / 1_000_000;
+    return value >= 10 ? `${Math.round(value)}M` : `${value.toFixed(1)}M`;
+  }
+  if (tokens >= 1_000) {
+    const value = tokens / 1_000;
+    return value >= 10 ? `${Math.round(value)}K` : `${value.toFixed(1)}K`;
+  }
+  return String(tokens);
+}
+
+/**
+ * Format cost in USD
+ * Examples: 0.5 -> "$0.50", 1.234 -> "$1.23"
+ */
+export function formatCost(cost: number): string {
+  return `$${cost.toFixed(2)}`;
+}
+
+/**
+ * Format time remaining until reset
+ * Examples: 2h30m, 45m, 5m
+ */
+export function formatTimeRemaining(resetAt: string | Date, t: Translations): string {
+  const reset = typeof resetAt === 'string' ? new Date(resetAt) : resetAt;
+  const now = new Date();
+  const diffMs = reset.getTime() - now.getTime();
+
+  if (diffMs <= 0) return `0${t.time.minutes}`;
+
+  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) {
+    return `${hours}${t.time.hours}${minutes}${t.time.minutes}`;
+  }
+  return `${minutes}${t.time.minutes}`;
+}
+
+/**
+ * Shorten model name
+ * Examples: "Claude 3.5 Sonnet" -> "Sonnet", "Claude Opus 4.5" -> "Opus"
+ */
+export function shortenModelName(displayName: string): string {
+  const lower = displayName.toLowerCase();
+
+  if (lower.includes('opus')) return 'Opus';
+  if (lower.includes('sonnet')) return 'Sonnet';
+  if (lower.includes('haiku')) return 'Haiku';
+
+  // Fallback: return first word after "Claude" or the original
+  const parts = displayName.split(/\s+/);
+  if (parts.length > 1 && parts[0].toLowerCase() === 'claude') {
+    return parts[1];
+  }
+
+  return displayName;
+}
+
+/**
+ * Calculate percentage
+ */
+export function calculatePercent(current: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((current / total) * 100));
+}

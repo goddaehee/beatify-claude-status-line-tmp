@@ -1,0 +1,17 @@
+{
+  "name": "beatify-claude-status-line",
+  "version": "1.0.0",
+  "description": "Beautiful status line with {god} tag, random emoji, context usage, API rate limits, and cost tracking",
+  "author": {
+    "name": "goddaehee"
+  },
+  "repository": "https://github.com/goddaehee/beatify-claude-status-line",
+  "license": "MIT",
+  "keywords": [
+    "statusline",
+    "context",
+    "rate-limits",
+    "cost",
+    "beautiful"
+  ]
+}

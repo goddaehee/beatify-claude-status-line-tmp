@@ -1,0 +1,20 @@
+{
+  "model": {
+    "opus": "Opus",
+    "sonnet": "Sonnet",
+    "haiku": "Haiku"
+  },
+  "labels": {
+    "5h": "5시간",
+    "7d": "7일",
+    "7d_all": "7일",
+    "7d_sonnet": "7일-S"
+  },
+  "time": {
+    "hours": "시간",
+    "minutes": "분"
+  },
+  "errors": {
+    "no_context": "컨텍스트 없음"
+  }
+}
