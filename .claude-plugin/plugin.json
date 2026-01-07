@@ -1,7 +1,7 @@
 {
   "name": "beatify-claude-status-line",
-  "version": "1.0.0",
-  "description": "Beautiful status line with {god} tag, random emoji, context usage, API rate limits, and cost tracking",
+  "version": "1.1.0",
+  "description": "Beautiful multi-line status line with {god} tag, random emoji, model version, context usage, rate limits, git branch, config counts, session duration, and activity tracking",
   "author": {
     "name": "goddaehee"
   },
@@ -12,6 +12,8 @@
     "context",
     "rate-limits",
     "cost",
+    "git",
+    "activity",
     "beautiful"
   ]
 }

@@ -46,15 +46,19 @@ export function formatTimeRemaining(resetAt: string | Date, t: Translations): st
 }
 
 /**
- * Shorten model name
- * Examples: "Claude 3.5 Sonnet" -> "Sonnet", "Claude Opus 4.5" -> "Opus"
+ * Shorten model name with version
+ * Examples: "Claude Opus 4.5" -> "Opus 4.5", "Claude 3.5 Sonnet" -> "Sonnet 3.5"
  */
 export function shortenModelName(displayName: string): string {
   const lower = displayName.toLowerCase();
 
-  if (lower.includes('opus')) return 'Opus';
-  if (lower.includes('sonnet')) return 'Sonnet';
-  if (lower.includes('haiku')) return 'Haiku';
+  // Extract version number (e.g., "4.5", "3.5")
+  const versionMatch = displayName.match(/(\d+\.?\d*)/);
+  const version = versionMatch ? versionMatch[1] : '';
+
+  if (lower.includes('opus')) return version ? `Opus ${version}` : 'Opus';
+  if (lower.includes('sonnet')) return version ? `Sonnet ${version}` : 'Sonnet';
+  if (lower.includes('haiku')) return version ? `Haiku ${version}` : 'Haiku';
 
   // Fallback: return first word after "Claude" or the original
   const parts = displayName.split(/\s+/);

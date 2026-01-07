@@ -61,18 +61,46 @@ After configuration:
 
 Display what the status line will look like based on their plan:
 
-**Max plan:**
+**Max plan (multi-line):**
 ```
-{god} 🔥 Opus │ myproject │ ████████░░ │ 80% │ 160K/200K │ $1.25 │ 5h:42%(2h30m) 7d:69% 7d-S:2%
+{god} 🚀 Opus 4.5 │ ███░░░░░░░ │ 31% │ 63K/200K │ $8.17 │ 5h:34%(3h34m) 7d:63% 7d-S:1%
+📁 myproject git:(main) │ 2 CLAUDE.md │ 3 MCPs │ ⏱️ 24m
+✓ Edit ×7 | ✓ Read ×5 | ✓ Bash ×4
+▸ Implement feature (3/6)
 ```
 
-**Pro plan:**
+**Pro plan (multi-line):**
 ```
-{god} ⚡️ Sonnet │ myproject │ ██████░░░░ │ 60% │ 120K/200K │ $0.45 │ 5h:42%(2h30m)
+{god} ⚡️ Sonnet 3.5 │ ██████░░░░ │ 60% │ 120K/200K │ $0.45 │ 5h:42%(2h30m)
+📁 myproject git:(develop) │ 1 CLAUDE.md │ 2 hooks │ ⏱️ 15m
+✓ Read ×3 | ✓ Write ×2
 ```
+
+## Status Line Components
+
+### Line 1: Main Status
+- `{god}` tag (white background)
+- Random emoji
+- Model name with version
+- Progress bar + percentage
+- Token count (current/total)
+- Cost in USD
+- Rate limits (5h, 7d, 7d-S for Max plan)
+
+### Line 2: Project Info
+- 📁 Directory name
+- Git branch
+- Config counts (CLAUDE.md, rules, MCPs, hooks)
+- ⏱️ Session duration
+
+### Line 3+: Activity (shown when available)
+- Tools: Running (◐) and completed (✓) with counts
+- Agents: Running/completed with elapsed time
+- Todos: Current task (▸) and progress
 
 ## Notes
 
 - If no arguments provided, use defaults (auto language, max plan)
 - The status line will start working immediately after configuration
 - To change settings later, run this command again with new arguments
+- Activity lines only appear when there is tool/agent/todo activity

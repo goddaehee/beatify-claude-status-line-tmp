@@ -5,16 +5,16 @@
     "email": ""
   },
   "metadata": {
-    "description": "Beautiful status line with {god} tag, random emoji, context usage, API rate limits, and cost tracking",
-    "version": "1.0.0"
+    "description": "Beautiful multi-line status line with {god} tag, random emoji, model version, context usage, rate limits, git branch, config counts, session duration, and activity tracking",
+    "version": "1.1.0"
   },
   "plugins": [
     {
       "name": "beatify-claude-status-line",
       "source": "./",
-      "description": "Beautiful status line with {god} tag, random emoji, model name, directory, context usage progress bar, token count, cost, and compact rate limits (5h/7d). Supports Max and Pro plans.",
+      "description": "Beautiful multi-line status line plugin. Line 1: {god} tag, random emoji, model with version (Opus 4.5), progress bar, tokens, cost, compact rate limits (5h/7d). Line 2: directory, git branch, CLAUDE.md/rules/MCPs/hooks counts, session duration. Line 3+: tools activity, agents status, todos progress. Supports Max and Pro plans.",
       "category": "monitoring",
-      "tags": ["statusline", "monitoring", "context", "rate-limits", "cost", "beautiful"]
+      "tags": ["statusline", "monitoring", "context", "rate-limits", "cost", "git", "activity", "beautiful"]
     }
   ]
 }

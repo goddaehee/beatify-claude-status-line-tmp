@@ -23,6 +23,8 @@ export interface StdinInput {
   cost: {
     total_cost_usd: number;
   };
+  cwd?: string;
+  transcript_path?: string;
 }
 
 /**
@@ -95,4 +97,56 @@ export interface UsageLimits {
 export interface CacheEntry<T> {
   data: T;
   timestamp: number;
+}
+
+/**
+ * Config counts for project info line
+ */
+export interface ConfigCounts {
+  claudeMdCount: number;
+  rulesCount: number;
+  mcpCount: number;
+  hooksCount: number;
+}
+
+/**
+ * Tool entry from transcript
+ */
+export interface ToolEntry {
+  name: string;
+  target?: string;
+  status: 'running' | 'completed' | 'error';
+  startTime: Date;
+  endTime?: Date;
+}
+
+/**
+ * Agent entry from transcript
+ */
+export interface AgentEntry {
+  type: string;
+  model?: string;
+  description?: string;
+  status: 'running' | 'completed';
+  startTime: Date;
+  endTime?: Date;
+}
+
+/**
+ * Todo entry from transcript
+ */
+export interface TodoEntry {
+  id: string;
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+/**
+ * Parsed transcript data
+ */
+export interface TranscriptData {
+  sessionStart?: Date;
+  tools: ToolEntry[];
+  agents: AgentEntry[];
+  todos: TodoEntry[];
 }

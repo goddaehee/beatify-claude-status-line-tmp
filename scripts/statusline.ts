@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 
 import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { homedir } from 'os';
 
-import type { StdinInput, Config, Translations, UsageLimits } from './types.js';
+import type { StdinInput, Config, Translations, UsageLimits, ConfigCounts, TranscriptData, ToolEntry, AgentEntry, TodoEntry } from './types.js';
 import { DEFAULT_CONFIG } from './types.js';
 import { COLORS, RESET, getColorForPercent, colorize } from './utils/colors.js';
 import { formatTokens, formatCost, formatTimeRemaining, shortenModelName, calculatePercent } from './utils/formatters.js';
 import { renderProgressBar } from './utils/progress-bar.js';
 import { fetchUsageLimits } from './utils/api-client.js';
 import { getTranslations } from './utils/i18n.js';
-import { basename } from 'path';
+import { getGitBranch } from './utils/git.js';
+import { countConfigs } from './utils/config-counter.js';
+import { parseTranscript } from './utils/transcript.js';
 
 const CONFIG_PATH = join(homedir(), '.claude', 'claude-dashboard.local.json');
 const SEPARATOR = ` ${COLORS.dim}│${RESET} `;
@@ -57,7 +59,7 @@ async function loadConfig(): Promise<Config> {
 }
 
 /**
- * Build context section: {god} tag, emoji, model, directory, progress bar, %, tokens, cost
+ * Build context section: {god} tag, emoji, model, progress bar, %, tokens, cost
  */
 function buildContextSection(
   input: StdinInput,
@@ -65,15 +67,11 @@ function buildContextSection(
 ): string {
   const parts: string[] = [];
 
-  // {god} tag + random emoji + model name
+  // {god} tag + random emoji + model name (with version)
   const godTag = getGodTag();
   const emoji = getRandomEmoji();
   const modelName = shortenModelName(input.model.display_name);
   parts.push(`${godTag} ${emoji} ${COLORS.cyan}${modelName}${RESET}`);
-
-  // Directory name
-  const dirName = basename(input.workspace.current_dir);
-  parts.push(colorize(dirName, COLORS.dim));
 
   // Check if we have context usage data
   const usage = input.context_window.current_usage;
@@ -179,6 +177,175 @@ function buildRateLimitsSection(
 }
 
 /**
+ * Format session duration (e.g., "5m", "1h23m")
+ */
+function formatSessionDuration(startTime: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - startTime.getTime();
+  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) {
+    return `${hours}h${minutes}m`;
+  }
+  return `${minutes}m`;
+}
+
+/**
+ * Truncate path to last component
+ */
+function truncatePath(filePath: string, maxLen = 20): string {
+  const name = basename(filePath);
+  return name.length > maxLen ? name.slice(0, maxLen - 3) + '...' : name;
+}
+
+/**
+ * Truncate text
+ */
+function truncate(text: string, maxLen: number): string {
+  return text.length > maxLen ? text.slice(0, maxLen - 3) + '...' : text;
+}
+
+/**
+ * Build project line: 📁 project git:(branch) | CLAUDE.md | rules | MCPs | hooks | ⏱️ session
+ */
+function buildProjectLine(
+  cwd: string | undefined,
+  gitBranch: string | undefined,
+  configCounts: ConfigCounts,
+  sessionDuration: string | undefined
+): string | null {
+  if (!cwd) return null;
+
+  const parts: string[] = [];
+
+  // Project name + git branch
+  const projectName = basename(cwd) || cwd;
+  let projectPart = `📁 ${colorize(projectName, COLORS.yellow)}`;
+
+  if (gitBranch) {
+    projectPart += ` ${colorize('git:(', COLORS.magenta)}${colorize(gitBranch, COLORS.cyan)}${colorize(')', COLORS.magenta)}`;
+  }
+  parts.push(projectPart);
+
+  // Config counts
+  if (configCounts.claudeMdCount > 0) {
+    parts.push(colorize(`${configCounts.claudeMdCount} CLAUDE.md`, COLORS.dim));
+  }
+  if (configCounts.rulesCount > 0) {
+    parts.push(colorize(`${configCounts.rulesCount} rules`, COLORS.dim));
+  }
+  if (configCounts.mcpCount > 0) {
+    parts.push(colorize(`${configCounts.mcpCount} MCPs`, COLORS.dim));
+  }
+  if (configCounts.hooksCount > 0) {
+    parts.push(colorize(`${configCounts.hooksCount} hooks`, COLORS.dim));
+  }
+
+  // Session duration
+  if (sessionDuration) {
+    parts.push(colorize(`⏱️ ${sessionDuration}`, COLORS.dim));
+  }
+
+  return parts.join(SEPARATOR);
+}
+
+/**
+ * Build tools activity line
+ */
+function buildToolsLine(tools: ToolEntry[]): string | null {
+  if (tools.length === 0) return null;
+
+  const parts: string[] = [];
+
+  // Running tools (max 2)
+  const runningTools = tools.filter((t) => t.status === 'running');
+  for (const tool of runningTools.slice(-2)) {
+    const target = tool.target ? truncatePath(tool.target) : '';
+    parts.push(`${colorize('◐', COLORS.yellow)} ${colorize(tool.name, COLORS.cyan)}${target ? colorize(`: ${target}`, COLORS.dim) : ''}`);
+  }
+
+  // Completed tools counts
+  const completedTools = tools.filter((t) => t.status === 'completed' || t.status === 'error');
+  const toolCounts = new Map<string, number>();
+  for (const tool of completedTools) {
+    const count = toolCounts.get(tool.name) ?? 0;
+    toolCounts.set(tool.name, count + 1);
+  }
+
+  const sortedTools = Array.from(toolCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+
+  for (const [name, count] of sortedTools) {
+    parts.push(`${colorize('✓', COLORS.green)} ${name} ${colorize(`×${count}`, COLORS.dim)}`);
+  }
+
+  return parts.length > 0 ? parts.join(' | ') : null;
+}
+
+/**
+ * Build agents activity line
+ */
+function buildAgentsLine(agents: AgentEntry[]): string | null {
+  const runningAgents = agents.filter((a) => a.status === 'running');
+  const recentCompleted = agents.filter((a) => a.status === 'completed').slice(-2);
+
+  const toShow = [...runningAgents, ...recentCompleted].slice(-3);
+  if (toShow.length === 0) return null;
+
+  const lines: string[] = [];
+
+  for (const agent of toShow) {
+    const statusIcon = agent.status === 'running' ? colorize('◐', COLORS.yellow) : colorize('✓', COLORS.green);
+    const type = colorize(agent.type, COLORS.magenta);
+    const model = agent.model ? colorize(`[${agent.model}]`, COLORS.dim) : '';
+    const desc = agent.description ? colorize(`: ${truncate(agent.description, 40)}`, COLORS.dim) : '';
+
+    // Calculate elapsed
+    const now = Date.now();
+    const start = agent.startTime.getTime();
+    const end = agent.endTime?.getTime() ?? now;
+    const ms = end - start;
+    let elapsed = '<1s';
+    if (ms >= 1000 && ms < 60000) elapsed = `${Math.round(ms / 1000)}s`;
+    else if (ms >= 60000) {
+      const mins = Math.floor(ms / 60000);
+      const secs = Math.round((ms % 60000) / 1000);
+      elapsed = `${mins}m${secs}s`;
+    }
+
+    lines.push(`${statusIcon} ${type}${model ? ` ${model}` : ''}${desc} ${colorize(`(${elapsed})`, COLORS.dim)}`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Build todos progress line
+ */
+function buildTodosLine(todos: TodoEntry[]): string | null {
+  if (!todos || todos.length === 0) return null;
+
+  const inProgress = todos.find((t) => t.status === 'in_progress');
+  const completed = todos.filter((t) => t.status === 'completed').length;
+  const total = todos.length;
+
+  if (!inProgress) {
+    if (completed === total && total > 0) {
+      return `${colorize('✓', COLORS.green)} All todos complete ${colorize(`(${completed}/${total})`, COLORS.dim)}`;
+    }
+    return null;
+  }
+
+  const content = truncate(inProgress.content, 50);
+  const progress = colorize(`(${completed}/${total})`, COLORS.dim);
+
+  return `${colorize('▸', COLORS.yellow)} ${content} ${progress}`;
+}
+
+/**
  * Main entry point
  */
 async function main(): Promise<void> {
@@ -195,21 +362,50 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Build context section
+  const cwd = input.cwd || input.workspace?.current_dir;
+
+  // Fetch all data in parallel
+  const [limits, gitBranch, configCounts, transcriptData] = await Promise.all([
+    fetchUsageLimits(config.cache.ttlSeconds),
+    getGitBranch(cwd),
+    countConfigs(cwd),
+    input.transcript_path ? parseTranscript(input.transcript_path) : Promise.resolve({ tools: [], agents: [], todos: [] } as TranscriptData),
+  ]);
+
+  // Calculate session duration
+  const sessionDuration = transcriptData.sessionStart
+    ? formatSessionDuration(transcriptData.sessionStart)
+    : undefined;
+
+  // Build all lines
+  const lines: string[] = [];
+
+  // Line 1: Main status line (model, context, rate limits)
   const contextSection = buildContextSection(input, t);
-
-  // Fetch rate limits (uses cache)
-  const limits = await fetchUsageLimits(config.cache.ttlSeconds);
-
-  // Build rate limits section
   const rateLimitsSection = buildRateLimitsSection(limits, config, t);
+  const mainLine = [contextSection, rateLimitsSection].filter(Boolean).join(SEPARATOR);
+  lines.push(mainLine);
 
-  // Combine sections
-  const output = [contextSection, rateLimitsSection]
-    .filter(Boolean)
-    .join(SEPARATOR);
+  // Line 2: Project info (git branch, config counts, session duration)
+  const projectLine = buildProjectLine(cwd, gitBranch, configCounts, sessionDuration);
+  if (projectLine) lines.push(projectLine);
 
-  console.log(output);
+  // Line 3: Tools activity
+  const toolsLine = buildToolsLine(transcriptData.tools);
+  if (toolsLine) lines.push(toolsLine);
+
+  // Line 4: Agents activity
+  const agentsLine = buildAgentsLine(transcriptData.agents);
+  if (agentsLine) lines.push(agentsLine);
+
+  // Line 5: Todos progress
+  const todosLine = buildTodosLine(transcriptData.todos);
+  if (todosLine) lines.push(todosLine);
+
+  // Output all lines
+  for (const line of lines) {
+    console.log(line);
+  }
 }
 
 // Run
