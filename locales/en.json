@@ -16,5 +16,8 @@
   },
   "errors": {
     "no_context": "No context yet"
+  },
+  "activity": {
+    "all_todos_complete": "All todos complete"
   }
 }

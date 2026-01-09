@@ -25,8 +25,8 @@ function getRandomEmoji(): string {
   return EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
 }
 
-function getGodTag(): string {
-  return `${COLORS.black}${COLORS.bgWhite}{god}${RESET}`;
+function getUserTag(username: string): string {
+  return `${COLORS.black}${COLORS.bgWhite}{${username}}${RESET}`;
 }
 
 /**
@@ -59,19 +59,20 @@ async function loadConfig(): Promise<Config> {
 }
 
 /**
- * Build context section: {god} tag, emoji, model, progress bar, %, tokens, cost
+ * Build context section: user tag, emoji, model, progress bar, %, tokens, cost
  */
 function buildContextSection(
   input: StdinInput,
+  config: Config,
   t: Translations
 ): string {
   const parts: string[] = [];
 
-  // {god} tag + random emoji + model name (with version)
-  const godTag = getGodTag();
+  // {username} tag + random emoji + model name (with version)
+  const userTag = getUserTag(config.username);
   const emoji = getRandomEmoji();
   const modelName = shortenModelName(input.model.display_name);
-  parts.push(`${godTag} ${emoji} ${COLORS.cyan}${modelName}${RESET}`);
+  parts.push(`${userTag} ${emoji} ${COLORS.cyan}${modelName}${RESET}`);
 
   // Check if we have context usage data
   const usage = input.context_window.current_usage;
@@ -132,7 +133,7 @@ function formatTimeCompact(resetAt: string | Date): string {
 function buildRateLimitsSection(
   limits: UsageLimits | null,
   config: Config,
-  _t: Translations
+  t: Translations
 ): string {
   if (!limits) {
     // Show warning icon if API failed
@@ -141,11 +142,11 @@ function buildRateLimitsSection(
 
   const parts: string[] = [];
 
-  // 5h rate limit (both Max and Pro) - compact format: "5h:7%(4h40m)"
+  // 5h rate limit (both Max and Pro)
   if (limits.five_hour) {
     const pct = Math.round(limits.five_hour.utilization);
     const color = getColorForPercent(pct);
-    let text = `5h:${colorize(`${pct}%`, color)}`;
+    let text = `${t.labels['5h']}:${colorize(`${pct}%`, color)}`;
 
     // Add reset time if available
     if (limits.five_hour.resets_at) {
@@ -157,18 +158,18 @@ function buildRateLimitsSection(
   }
 
   if (config.plan === 'max') {
-    // Max plan: Show 7d (all models) - compact format: "7d:49%"
+    // Max plan: Show 7d (all models)
     if (limits.seven_day) {
       const pct = Math.round(limits.seven_day.utilization);
       const color = getColorForPercent(pct);
-      parts.push(`7d:${colorize(`${pct}%`, color)}`);
+      parts.push(`${t.labels['7d']}:${colorize(`${pct}%`, color)}`);
     }
 
-    // Sonnet only usage - compact format: "7d-S:1%"
+    // Sonnet only usage
     if (limits.seven_day_sonnet) {
       const pct = Math.round(limits.seven_day_sonnet.utilization);
       const color = getColorForPercent(pct);
-      parts.push(`7d-S:${colorize(`${pct}%`, color)}`);
+      parts.push(`${t.labels['7d_sonnet']}:${colorize(`${pct}%`, color)}`);
     }
   }
   // Pro plan: Only 5h is shown (already added above)
@@ -254,14 +255,14 @@ function buildProjectLine(
 /**
  * Build tools activity line
  */
-function buildToolsLine(tools: ToolEntry[]): string | null {
+function buildToolsLine(tools: ToolEntry[], config: Config): string | null {
   if (tools.length === 0) return null;
 
   const parts: string[] = [];
 
-  // Running tools (max 2)
+  // Running tools
   const runningTools = tools.filter((t) => t.status === 'running');
-  for (const tool of runningTools.slice(-2)) {
+  for (const tool of runningTools.slice(-config.display.maxRunningTools)) {
     const target = tool.target ? truncatePath(tool.target) : '';
     parts.push(`${colorize('◐', COLORS.yellow)} ${colorize(tool.name, COLORS.cyan)}${target ? colorize(`: ${target}`, COLORS.dim) : ''}`);
   }
@@ -276,7 +277,7 @@ function buildToolsLine(tools: ToolEntry[]): string | null {
 
   const sortedTools = Array.from(toolCounts.entries())
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 4);
+    .slice(0, config.display.maxCompletedTools);
 
   for (const [name, count] of sortedTools) {
     parts.push(`${colorize('✓', COLORS.green)} ${name} ${colorize(`×${count}`, COLORS.dim)}`);
@@ -288,11 +289,11 @@ function buildToolsLine(tools: ToolEntry[]): string | null {
 /**
  * Build agents activity line
  */
-function buildAgentsLine(agents: AgentEntry[]): string | null {
+function buildAgentsLine(agents: AgentEntry[], config: Config): string | null {
   const runningAgents = agents.filter((a) => a.status === 'running');
-  const recentCompleted = agents.filter((a) => a.status === 'completed').slice(-2);
+  const recentCompleted = agents.filter((a) => a.status === 'completed').slice(-config.display.maxAgents);
 
-  const toShow = [...runningAgents, ...recentCompleted].slice(-3);
+  const toShow = [...runningAgents, ...recentCompleted].slice(-config.display.maxAgents);
   if (toShow.length === 0) return null;
 
   const lines: string[] = [];
@@ -325,16 +326,16 @@ function buildAgentsLine(agents: AgentEntry[]): string | null {
 /**
  * Build todos progress line
  */
-function buildTodosLine(todos: TodoEntry[]): string | null {
+function buildTodosLine(todos: TodoEntry[], t: Translations): string | null {
   if (!todos || todos.length === 0) return null;
 
-  const inProgress = todos.find((t) => t.status === 'in_progress');
-  const completed = todos.filter((t) => t.status === 'completed').length;
+  const inProgress = todos.find((todo) => todo.status === 'in_progress');
+  const completed = todos.filter((todo) => todo.status === 'completed').length;
   const total = todos.length;
 
   if (!inProgress) {
     if (completed === total && total > 0) {
-      return `${colorize('✓', COLORS.green)} All todos complete ${colorize(`(${completed}/${total})`, COLORS.dim)}`;
+      return `${colorize('✓', COLORS.green)} ${t.activity.all_todos_complete} ${colorize(`(${completed}/${total})`, COLORS.dim)}`;
     }
     return null;
   }
@@ -381,7 +382,7 @@ async function main(): Promise<void> {
   const lines: string[] = [];
 
   // Line 1: Main status line (model, context, rate limits)
-  const contextSection = buildContextSection(input, t);
+  const contextSection = buildContextSection(input, config, t);
   const rateLimitsSection = buildRateLimitsSection(limits, config, t);
   const mainLine = [contextSection, rateLimitsSection].filter(Boolean).join(SEPARATOR);
   lines.push(mainLine);
@@ -391,15 +392,15 @@ async function main(): Promise<void> {
   if (projectLine) lines.push(projectLine);
 
   // Line 3: Tools activity
-  const toolsLine = buildToolsLine(transcriptData.tools);
+  const toolsLine = buildToolsLine(transcriptData.tools, config);
   if (toolsLine) lines.push(toolsLine);
 
   // Line 4: Agents activity
-  const agentsLine = buildAgentsLine(transcriptData.agents);
+  const agentsLine = buildAgentsLine(transcriptData.agents, config);
   if (agentsLine) lines.push(agentsLine);
 
   // Line 5: Todos progress
-  const todosLine = buildTodosLine(transcriptData.todos);
+  const todosLine = buildTodosLine(transcriptData.todos, t);
   if (todosLine) lines.push(todosLine);
 
   // Output all lines

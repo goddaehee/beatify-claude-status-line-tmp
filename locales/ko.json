@@ -16,5 +16,8 @@
   },
   "errors": {
     "no_context": "컨텍스트 없음"
+  },
+  "activity": {
+    "all_todos_complete": "모든 할일 완료"
   }
 }

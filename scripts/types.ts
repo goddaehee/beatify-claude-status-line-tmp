@@ -33,8 +33,14 @@ export interface StdinInput {
 export interface Config {
   language: 'en' | 'ko' | 'auto';
   plan: 'pro' | 'max';
+  username: string;
   cache: {
     ttlSeconds: number;
+  };
+  display: {
+    maxRunningTools: number;
+    maxCompletedTools: number;
+    maxAgents: number;
   };
 }
 
@@ -44,8 +50,14 @@ export interface Config {
 export const DEFAULT_CONFIG: Config = {
   language: 'auto',
   plan: 'max',
+  username: 'god',
   cache: {
     ttlSeconds: 60,
+  },
+  display: {
+    maxRunningTools: 2,
+    maxCompletedTools: 4,
+    maxAgents: 3,
   },
 };
 
@@ -70,6 +82,9 @@ export interface Translations {
   };
   errors: {
     no_context: string;
+  };
+  activity: {
+    all_todos_complete: string;
   };
 }
 

@@ -9,8 +9,14 @@ import { homedir as homedir3 } from "os";
 var DEFAULT_CONFIG = {
   language: "auto",
   plan: "max",
+  username: "god",
   cache: {
     ttlSeconds: 60
+  },
+  display: {
+    maxRunningTools: 2,
+    maxCompletedTools: 4,
+    maxAgents: 3
   }
 };
 
@@ -240,6 +246,9 @@ var en_default = {
   },
   errors: {
     no_context: "No context yet"
+  },
+  activity: {
+    all_todos_complete: "All todos complete"
   }
 };
 
@@ -262,6 +271,9 @@ var ko_default = {
   },
   errors: {
     no_context: "\uCEE8\uD14D\uC2A4\uD2B8 \uC5C6\uC74C"
+  },
+  activity: {
+    all_todos_complete: "\uBAA8\uB4E0 \uD560\uC77C \uC644\uB8CC"
   }
 };
 
@@ -497,8 +509,8 @@ var EMOJIS = ["\u26A1\uFE0F", "\u{1F525}", "\u{1F451}", "\u{1F60E}", "\u{1F438}"
 function getRandomEmoji() {
   return EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
 }
-function getGodTag() {
-  return `${COLORS.black}${COLORS.bgWhite}{god}${RESET}`;
+function getUserTag(username) {
+  return `${COLORS.black}${COLORS.bgWhite}{${username}}${RESET}`;
 }
 async function readStdin() {
   try {
@@ -521,12 +533,12 @@ async function loadConfig() {
     return DEFAULT_CONFIG;
   }
 }
-function buildContextSection(input, t) {
+function buildContextSection(input, config, t) {
   const parts = [];
-  const godTag = getGodTag();
+  const userTag = getUserTag(config.username);
   const emoji = getRandomEmoji();
   const modelName = shortenModelName(input.model.display_name);
-  parts.push(`${godTag} ${emoji} ${COLORS.cyan}${modelName}${RESET}`);
+  parts.push(`${userTag} ${emoji} ${COLORS.cyan}${modelName}${RESET}`);
   const usage = input.context_window.current_usage;
   if (!usage) {
     parts.push(colorize(t.errors.no_context, COLORS.dim));
@@ -555,7 +567,7 @@ function formatTimeCompact(resetAt) {
   }
   return `${minutes}m`;
 }
-function buildRateLimitsSection(limits, config, _t) {
+function buildRateLimitsSection(limits, config, t) {
   if (!limits) {
     return colorize("\u26A0\uFE0F", COLORS.yellow);
   }
@@ -563,7 +575,7 @@ function buildRateLimitsSection(limits, config, _t) {
   if (limits.five_hour) {
     const pct = Math.round(limits.five_hour.utilization);
     const color = getColorForPercent(pct);
-    let text = `5h:${colorize(`${pct}%`, color)}`;
+    let text = `${t.labels["5h"]}:${colorize(`${pct}%`, color)}`;
     if (limits.five_hour.resets_at) {
       const remaining = formatTimeCompact(limits.five_hour.resets_at);
       text += `(${remaining})`;
@@ -574,12 +586,12 @@ function buildRateLimitsSection(limits, config, _t) {
     if (limits.seven_day) {
       const pct = Math.round(limits.seven_day.utilization);
       const color = getColorForPercent(pct);
-      parts.push(`7d:${colorize(`${pct}%`, color)}`);
+      parts.push(`${t.labels["7d"]}:${colorize(`${pct}%`, color)}`);
     }
     if (limits.seven_day_sonnet) {
       const pct = Math.round(limits.seven_day_sonnet.utilization);
       const color = getColorForPercent(pct);
-      parts.push(`7d-S:${colorize(`${pct}%`, color)}`);
+      parts.push(`${t.labels["7d_sonnet"]}:${colorize(`${pct}%`, color)}`);
     }
   }
   return parts.join(" ");
@@ -628,11 +640,11 @@ function buildProjectLine(cwd, gitBranch, configCounts, sessionDuration) {
   }
   return parts.join(SEPARATOR);
 }
-function buildToolsLine(tools) {
+function buildToolsLine(tools, config) {
   if (tools.length === 0) return null;
   const parts = [];
   const runningTools = tools.filter((t) => t.status === "running");
-  for (const tool of runningTools.slice(-2)) {
+  for (const tool of runningTools.slice(-config.display.maxRunningTools)) {
     const target = tool.target ? truncatePath(tool.target) : "";
     parts.push(`${colorize("\u25D0", COLORS.yellow)} ${colorize(tool.name, COLORS.cyan)}${target ? colorize(`: ${target}`, COLORS.dim) : ""}`);
   }
@@ -642,16 +654,16 @@ function buildToolsLine(tools) {
     const count = toolCounts.get(tool.name) ?? 0;
     toolCounts.set(tool.name, count + 1);
   }
-  const sortedTools = Array.from(toolCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const sortedTools = Array.from(toolCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, config.display.maxCompletedTools);
   for (const [name, count] of sortedTools) {
     parts.push(`${colorize("\u2713", COLORS.green)} ${name} ${colorize(`\xD7${count}`, COLORS.dim)}`);
   }
   return parts.length > 0 ? parts.join(" | ") : null;
 }
-function buildAgentsLine(agents) {
+function buildAgentsLine(agents, config) {
   const runningAgents = agents.filter((a) => a.status === "running");
-  const recentCompleted = agents.filter((a) => a.status === "completed").slice(-2);
-  const toShow = [...runningAgents, ...recentCompleted].slice(-3);
+  const recentCompleted = agents.filter((a) => a.status === "completed").slice(-config.display.maxAgents);
+  const toShow = [...runningAgents, ...recentCompleted].slice(-config.display.maxAgents);
   if (toShow.length === 0) return null;
   const lines = [];
   for (const agent of toShow) {
@@ -674,14 +686,14 @@ function buildAgentsLine(agents) {
   }
   return lines.join("\n");
 }
-function buildTodosLine(todos) {
+function buildTodosLine(todos, t) {
   if (!todos || todos.length === 0) return null;
-  const inProgress = todos.find((t) => t.status === "in_progress");
-  const completed = todos.filter((t) => t.status === "completed").length;
+  const inProgress = todos.find((todo) => todo.status === "in_progress");
+  const completed = todos.filter((todo) => todo.status === "completed").length;
   const total = todos.length;
   if (!inProgress) {
     if (completed === total && total > 0) {
-      return `${colorize("\u2713", COLORS.green)} All todos complete ${colorize(`(${completed}/${total})`, COLORS.dim)}`;
+      return `${colorize("\u2713", COLORS.green)} ${t.activity.all_todos_complete} ${colorize(`(${completed}/${total})`, COLORS.dim)}`;
     }
     return null;
   }
@@ -706,17 +718,17 @@ async function main() {
   ]);
   const sessionDuration = transcriptData.sessionStart ? formatSessionDuration(transcriptData.sessionStart) : void 0;
   const lines = [];
-  const contextSection = buildContextSection(input, t);
+  const contextSection = buildContextSection(input, config, t);
   const rateLimitsSection = buildRateLimitsSection(limits, config, t);
   const mainLine = [contextSection, rateLimitsSection].filter(Boolean).join(SEPARATOR);
   lines.push(mainLine);
   const projectLine = buildProjectLine(cwd, gitBranch, configCounts, sessionDuration);
   if (projectLine) lines.push(projectLine);
-  const toolsLine = buildToolsLine(transcriptData.tools);
+  const toolsLine = buildToolsLine(transcriptData.tools, config);
   if (toolsLine) lines.push(toolsLine);
-  const agentsLine = buildAgentsLine(transcriptData.agents);
+  const agentsLine = buildAgentsLine(transcriptData.agents, config);
   if (agentsLine) lines.push(agentsLine);
-  const todosLine = buildTodosLine(transcriptData.todos);
+  const todosLine = buildTodosLine(transcriptData.todos, t);
   if (todosLine) lines.push(todosLine);
   for (const line of lines) {
     console.log(line);

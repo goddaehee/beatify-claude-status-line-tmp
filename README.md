@@ -5,7 +5,7 @@ Beautiful multi-line status line plugin for Claude Code with `{god}` tag, random
 ## Features
 
 ### Line 1: Main Status
-- **{god} Tag**: Eye-catching white background tag
+- **{username} Tag**: Customizable white background tag (default: "god")
 - **Random Emoji**: Different emoji each time (⚡️ 🔥 👑 😎 🦄 🌈 🚀 💡 🎉 🔑 🌙)
 - **Model Display**: Shows current model with version (Opus 4.5, Sonnet 3.5, Haiku)
 - **Progress Bar**: Color-coded context usage (green → yellow → red)
@@ -27,12 +27,14 @@ Beautiful multi-line status line plugin for Claude Code with `{god}` tag, random
 ## Output Example
 
 ```
-{god} 🚀 Opus 4.5 │ ███░░░░░░░ │ 31% │ 63K/200K │ $8.17 │ 5h:34%(3h34m) 7d:63% 7d-S:1%
+{username} 🚀 Opus 4.5 │ ███░░░░░░░ │ 31% │ 63K/200K │ $8.17 │ 5h:34%(3h34m) 7d:63% 7d-S:1%
 📁 claude-dashboard git:(main) │ 2 CLAUDE.md │ 5 MCPs │ ⏱️ 24m
 ✓ Edit ×7 | ✓ Read ×5 | ✓ Bash ×4 | ✓ Write ×3
 ✓ Explore: Analyze max plan implementation (45s)
 ▸ Update documentation (3/6)
 ```
+
+The `{username}` tag displays your configured name (default: "god").
 
 ## Installation
 
@@ -61,14 +63,14 @@ git clone git@github.com:goddaehee/beatify-claude-status-line.git ~/.claude/plug
 Run `/beatify-claude-status-line:setup` with optional arguments:
 
 ```
-# Default: auto language detection, max plan
+# Default: auto language detection, max plan, username "god"
 /beatify-claude-status-line:setup
 
 # English, pro plan
 /beatify-claude-status-line:setup en pro
 
-# Korean, max plan
-/beatify-claude-status-line:setup ko max
+# Korean, max plan, custom username
+/beatify-claude-status-line:setup ko max alice
 ```
 
 ### Configuration File
@@ -79,6 +81,7 @@ Settings are stored in `~/.claude/claude-dashboard.local.json`:
 {
   "language": "auto",
   "plan": "max",
+  "username": "god",
   "cache": {
     "ttlSeconds": 60
   }
@@ -96,7 +99,7 @@ Settings are stored in `~/.claude/claude-dashboard.local.json`:
 
 | Component | Description |
 |-----------|-------------|
-| `{god}` | White background tag |
+| `{username}` | Customizable white background tag |
 | Emoji | Random emoji (changes each render) |
 | Model | Model name with version (e.g., Opus 4.5) |
 | Progress Bar | 10-char bar showing context usage |
